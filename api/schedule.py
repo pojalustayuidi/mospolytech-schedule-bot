@@ -2,7 +2,7 @@ import requests
 import json
 import logging
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 from config.settings import BASE_URL, API_URL, HEADERS, SCHEDULE_TIMES, WEEK_DAYS
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Словарь для преобразования русских названий месяцев
 MONTHS_RU = {
-    "янв": 1, "фев": 2, "мар": 3, "апр": 4, "мая": 5, "июн": 6,
+    "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6,
     "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12
 }
 
@@ -23,17 +23,6 @@ MONTHS_RU = {
 def fetch_schedule(group: str, session: str = "0") -> Dict[str, Any]:
     """
     Получает расписание для заданной группы через API rasp.dmami.ru.
-
-    Args:
-        group (str): Номер группы (например, "241-335").
-        session (str): Идентификатор сессии (например, "0").
-
-    Returns:
-        Dict[str, Any]: Данные расписания в формате JSON.
-
-    Raises:
-        requests.HTTPError: Если запрос завершился с ошибкой HTTP.
-        ValueError: Если ответ не в формате JSON.
     """
     params = {"group": group, "session": session}
     session = requests.Session()
@@ -62,6 +51,7 @@ def fetch_schedule(group: str, session: str = "0") -> Dict[str, Any]:
             logger.warning("Данные получены как строка, пробуем распарсить ещё раз...")
             data = json.loads(data)
 
+        logger.info(f"Полные данные API: {json.dumps(data, ensure_ascii=False, indent=2)}")
         return data
 
     except requests.HTTPError as e:
@@ -83,13 +73,6 @@ def fetch_schedule(group: str, session: str = "0") -> Dict[str, Any]:
 def is_date_range_valid(dts: str, current_date: datetime) -> bool:
     """
     Проверяет, является ли диапазон дат в поле dts актуальным для текущей даты.
-
-    Args:
-        dts (str): Строка с диапазоном дат (например, "03 Фев - 06 Апр").
-        current_date (datetime): Текущая дата для сравнения.
-
-    Returns:
-        bool: True, если занятие актуально, False иначе.
     """
     logger.info(f"Проверка диапазона дат: '{dts}'")
     if not dts or dts == "Не указано":
@@ -97,23 +80,16 @@ def is_date_range_valid(dts: str, current_date: datetime) -> bool:
         return True
 
     try:
-        # Разделяем диапазон на начальную и конечную дату
         date_parts = [part.strip() for part in dts.split("-")]
-        if len(date_parts) != 2:
-            logger.warning(f"Некорректный формат диапазона дат: '{dts}', считаем актуальным")
-            return True
-
-        start_str, end_str = date_parts
         current_year = current_date.year
 
-        # Парсим дату вручную: формат "DD МММ" (например, "03 Фев")
         def parse_date(date_str: str) -> datetime:
             match = re.match(r"(\d{1,2})\s+([а-яА-Я]+)", date_str, re.IGNORECASE)
             if not match:
                 raise ValueError(f"Некорректный формат даты: {date_str}")
 
             day, month_str = match.groups()
-            month_str = month_str.lower()[:3]  # Берём первые три буквы
+            month_str = month_str.lower()[:3]
             if month_str not in MONTHS_RU:
                 raise ValueError(f"Неизвестный месяц: {month_str}")
 
@@ -121,34 +97,36 @@ def is_date_range_valid(dts: str, current_date: datetime) -> bool:
             day = int(day)
             return datetime(current_year, month, day)
 
-        start_date = parse_date(start_str)
-        end_date = parse_date(end_str)
+        if len(date_parts) == 1:
+            single_date = parse_date(date_parts[0])
+            is_valid = single_date.date() == current_date.date()
+            logger.info(
+                f"Одиночная дата: {single_date.date()}, текущая дата: {current_date.date()}, актуально: {is_valid}")
+            return is_valid
+        elif len(date_parts) == 2:
+            start_str, end_str = date_parts
+            start_date = parse_date(start_str)
+            end_date = parse_date(end_str)
 
-        # Если конечная дата раньше начальной, предполагаем следующий год
-        if end_date < start_date:
-            end_date = end_date.replace(year=current_year + 1)
+            if end_date < start_date:
+                end_date = end_date.replace(year=current_year + 1)
 
-        # Проверяем, актуально ли занятие
-        is_valid = start_date.date() <= current_date.date() <= end_date.date()
-        logger.info(
-            f"Диапазон: {start_date.date()} - {end_date.date()}, текущая дата: {current_date.date()}, актуально: {is_valid}")
-        return is_valid
+            is_valid = start_date.date() <= current_date.date() <= end_date.date()
+            logger.info(
+                f"Диапазон: {start_date.date()} - {end_date.date()}, текущая дата: {current_date.date()}, актуально: {is_valid}")
+            return is_valid
+        else:
+            logger.warning(f"Некорректный формат диапазона дат: '{dts}'")
+            return False
 
     except Exception as e:
-        logger.error(f"Ошибка парсинга диапазона дат '{dts}': {e}, считаем актуальным")
-        return True  # Если даты некорректны, включаем занятие
+        logger.error(f"Ошибка парсинга диапазона дат '{dts}': {e}")
+        return False
 
 
 def format_schedule(data: Dict[str, Any], selected_day: str = None) -> str:
     """
     Форматирует данные расписания в читаемый текстовый вид.
-
-    Args:
-        data (Dict[str, Any]): Данные расписания из API.
-        selected_day (str, optional): Номер дня недели для отображения (например, "1").
-
-    Returns:
-        str: Отформатированное расписание.
     """
     if not isinstance(data, dict):
         logger.error(f"Ожидался словарь, но получен: {type(data)}")
@@ -175,12 +153,12 @@ def format_schedule(data: Dict[str, Any], selected_day: str = None) -> str:
         day_name = WEEK_DAYS.get(day, f"День {day}")
         formatted.append(f"📅 {day_name}:")
         for pair_num, lessons in pairs.items():
+            logger.info(f"Обработка пары {pair_num}, lessons: {lessons}")
             if not lessons:
                 logger.info(f"Пара {pair_num} пустая, пропускаем")
                 continue
 
-            time = SCHEDULE_TIMES.get(pair_num, "N/A")
-            formatted.append(f"  🕒 {time} (Пара {pair_num}):")
+            valid_lessons = []
             for lesson in lessons:
                 if not isinstance(lesson, dict):
                     logger.error(f"Ожидался словарь для занятия, но получен: {type(lesson)}, значение: {lesson}")
@@ -191,15 +169,26 @@ def format_schedule(data: Dict[str, Any], selected_day: str = None) -> str:
                     logger.info(f"Пропущено занятие: {lesson.get('sbj', 'Не указано')}, даты: {dts}")
                     continue
 
+                valid_lessons.append(lesson)
+
+            if not valid_lessons:
+                logger.info(f"Пара {pair_num} не содержит актуальных занятий, пропускаем")
+                continue
+
+            time = SCHEDULE_TIMES.get(pair_num, "N/A")
+            formatted.append(f"  🕒 {time} (Пара {pair_num}):")
+            for lesson in valid_lessons:
                 subject = lesson.get("sbj", "Не указано")
                 teacher = lesson.get("teacher", "Не указано")
                 location = lesson.get("location", "Не указано")
                 lesson_type = lesson.get("type", "Не указано")
+                dts = lesson.get("dts", "Не указано")
                 logger.info(f"Добавлено занятие: {subject}, даты: {dts}, преподаватель: {teacher}, место: {location}")
                 formatted.append(f"    📖 {subject} ({lesson_type})")
                 formatted.append(f"    👨‍🏫 {teacher}")
                 formatted.append(f"    📍 {location} | 🗓️ {dts}")
             formatted.append("")
+
         formatted.append("")
 
     result = "\n".join(formatted) if formatted else "Расписание пустое."
