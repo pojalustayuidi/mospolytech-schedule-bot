@@ -2,6 +2,8 @@ import requests
 import json
 import logging
 from typing import Dict, Any
+from datetime import datetime
+import re
 from config.settings import BASE_URL, API_URL, HEADERS, SCHEDULE_TIMES, WEEK_DAYS
 
 # Настройка логирования
@@ -10,6 +12,13 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Словарь для преобразования русских названий месяцев
+MONTHS_RU = {
+    "янв": 1, "фев": 2, "мар": 3, "апр": 4, "мая": 5, "июн": 6,
+    "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12
+}
+
 
 def fetch_schedule(group: str, session: str = "0") -> Dict[str, Any]:
     """
@@ -30,31 +39,25 @@ def fetch_schedule(group: str, session: str = "0") -> Dict[str, Any]:
     session = requests.Session()
 
     try:
-        # Получаем куки с главной страницы
         logger.info("Получаем куки с главной страницы...")
         response = session.get(BASE_URL, headers=HEADERS, timeout=10)
         response.raise_for_status()
 
-        # Запрос к API
         logger.info(f"Запрашиваем расписание для группы {group}...")
         response = session.get(API_URL, params=params, headers=HEADERS, timeout=10)
         response.raise_for_status()
 
-        # Проверяем заголовки ответа
         content_type = response.headers.get("Content-Type", "")
         logger.info(f"Content-Type ответа: {content_type}")
 
-        # Проверяем, что получили JSON
         if "application/json" not in content_type.lower():
             logger.error("Сервер вернул не JSON:")
             logger.error(response.text)
             raise ValueError("Ожидался JSON, но получен другой формат")
 
-        # Парсим JSON
         data = response.json()
         logger.debug(f"Полученные данные: {data}")
 
-        # Если данные — строка, пробуем распарсить ещё раз
         if isinstance(data, str):
             logger.warning("Данные получены как строка, пробуем распарсить ещё раз...")
             data = json.loads(data)
@@ -75,6 +78,66 @@ def fetch_schedule(group: str, session: str = "0") -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Неизвестная ошибка: {e}")
         raise
+
+
+def is_date_range_valid(dts: str, current_date: datetime) -> bool:
+    """
+    Проверяет, является ли диапазон дат в поле dts актуальным для текущей даты.
+
+    Args:
+        dts (str): Строка с диапазоном дат (например, "03 Фев - 06 Апр").
+        current_date (datetime): Текущая дата для сравнения.
+
+    Returns:
+        bool: True, если занятие актуально, False иначе.
+    """
+    logger.info(f"Проверка диапазона дат: '{dts}'")
+    if not dts or dts == "Не указано":
+        logger.info("Даты не указаны, занятие считается актуальным")
+        return True
+
+    try:
+        # Разделяем диапазон на начальную и конечную дату
+        date_parts = [part.strip() for part in dts.split("-")]
+        if len(date_parts) != 2:
+            logger.warning(f"Некорректный формат диапазона дат: '{dts}', считаем актуальным")
+            return True
+
+        start_str, end_str = date_parts
+        current_year = current_date.year
+
+        # Парсим дату вручную: формат "DD МММ" (например, "03 Фев")
+        def parse_date(date_str: str) -> datetime:
+            match = re.match(r"(\d{1,2})\s+([а-яА-Я]+)", date_str, re.IGNORECASE)
+            if not match:
+                raise ValueError(f"Некорректный формат даты: {date_str}")
+
+            day, month_str = match.groups()
+            month_str = month_str.lower()[:3]  # Берём первые три буквы
+            if month_str not in MONTHS_RU:
+                raise ValueError(f"Неизвестный месяц: {month_str}")
+
+            month = MONTHS_RU[month_str]
+            day = int(day)
+            return datetime(current_year, month, day)
+
+        start_date = parse_date(start_str)
+        end_date = parse_date(end_str)
+
+        # Если конечная дата раньше начальной, предполагаем следующий год
+        if end_date < start_date:
+            end_date = end_date.replace(year=current_year + 1)
+
+        # Проверяем, актуально ли занятие
+        is_valid = start_date.date() <= current_date.date() <= end_date.date()
+        logger.info(
+            f"Диапазон: {start_date.date()} - {end_date.date()}, текущая дата: {current_date.date()}, актуально: {is_valid}")
+        return is_valid
+
+    except Exception as e:
+        logger.error(f"Ошибка парсинга диапазона дат '{dts}': {e}, считаем актуальным")
+        return True  # Если даты некорректны, включаем занятие
+
 
 def format_schedule(data: Dict[str, Any], selected_day: str = None) -> str:
     """
@@ -99,18 +162,21 @@ def format_schedule(data: Dict[str, Any], selected_day: str = None) -> str:
         return "Расписание пустое."
 
     formatted = []
+    current_date = datetime.now()
+    logger.info(f"Форматирование расписания для даты: {current_date.date()}")
     days_to_process = [selected_day] if selected_day else grid.keys()
 
     for day in days_to_process:
         pairs = grid.get(day, {})
-        if not pairs or not any(pairs.values()):  # Пропускаем дни без пар
+        if not pairs or not any(pairs.values()):
+            logger.info(f"День {day} пустой, пропускаем")
             continue
 
-        # Используем название дня недели из WEEK_DAYS
         day_name = WEEK_DAYS.get(day, f"День {day}")
         formatted.append(f"📅 {day_name}:")
         for pair_num, lessons in pairs.items():
-            if not lessons:  # Пропускаем пустые пары
+            if not lessons:
+                logger.info(f"Пара {pair_num} пустая, пропускаем")
                 continue
 
             time = SCHEDULE_TIMES.get(pair_num, "N/A")
@@ -120,15 +186,22 @@ def format_schedule(data: Dict[str, Any], selected_day: str = None) -> str:
                     logger.error(f"Ожидался словарь для занятия, но получен: {type(lesson)}, значение: {lesson}")
                     continue
 
+                dts = lesson.get("dts", "Не указано")
+                if not is_date_range_valid(dts, current_date):
+                    logger.info(f"Пропущено занятие: {lesson.get('sbj', 'Не указано')}, даты: {dts}")
+                    continue
+
                 subject = lesson.get("sbj", "Не указано")
                 teacher = lesson.get("teacher", "Не указано")
                 location = lesson.get("location", "Не указано")
                 lesson_type = lesson.get("type", "Не указано")
-                dts = lesson.get("dts", "Не указано")
+                logger.info(f"Добавлено занятие: {subject}, даты: {dts}, преподаватель: {teacher}, место: {location}")
                 formatted.append(f"    📖 {subject} ({lesson_type})")
                 formatted.append(f"    👨‍🏫 {teacher}")
                 formatted.append(f"    📍 {location} | 🗓️ {dts}")
-            formatted.append("")  # Пустая строка между парами
-        formatted.append("")  # Пустая строка между днями
+            formatted.append("")
+        formatted.append("")
 
-    return "\n".join(formatted) if formatted else "Расписание пустое."
+    result = "\n".join(formatted) if formatted else "Расписание пустое."
+    logger.info(f"Итоговое расписание: {result[:100]}... (длина: {len(result)} символов)")
+    return result
