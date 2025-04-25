@@ -9,7 +9,7 @@
 # from config.settings import TELEGRAM_TOKEN
 #
 # # Добавляем корневую папку проекта в sys.path
-# project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# project_root = os.path.abspath(o      s.path.join(os.path.dirname(__file__), '..'))
 # sys.path.insert(0, project_root)
 #
 # # Настройка логирования
