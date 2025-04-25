@@ -36,9 +36,6 @@ class ScheduleForm(StatesGroup):
     waiting_for_group = State()
 
 def create_day_buttons() -> InlineKeyboardMarkup:
-    """
-    Создаёт инлайн-клавиатуру с кнопками для выбора дня недели.
-    """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
     for day_num, day_name in WEEK_DAYS.items():
         button = InlineKeyboardButton(

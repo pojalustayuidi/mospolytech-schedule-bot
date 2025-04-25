@@ -124,73 +124,77 @@ def is_date_range_valid(dts: str, current_date: datetime) -> bool:
         return False
 
 
-def format_schedule(data: Dict[str, Any], selected_day: str = None) -> str:
+def format_schedule(data: Dict[str, Any], selected_day: str = None, group: str = "") -> str:
     """
-    Форматирует данные расписания в читаемый текстовый вид.
+    Форматирует данные расписания с улучшенным дизайном и иконками.
     """
     if not isinstance(data, dict):
         logger.error(f"Ожидался словарь, но получен: {type(data)}")
         raise ValueError("Данные должны быть словарем")
 
     if data.get("status") != "ok":
-        return "Ошибка: расписание не найдено."
+        return "❌ Ошибка: расписание не найдено."
 
     grid = data.get("grid", {})
     if not grid:
-        return "Расписание пустое."
+        return "📭 Расписание пустое."
 
     formatted = []
     current_date = datetime.now()
-    logger.info(f"Форматирование расписания для даты: {current_date.date()}")
     days_to_process = [selected_day] if selected_day else grid.keys()
 
     for day in days_to_process:
         pairs = grid.get(day, {})
         if not pairs or not any(pairs.values()):
-            logger.info(f"День {day} пустой, пропускаем")
             continue
 
         day_name = WEEK_DAYS.get(day, f"День {day}")
-        formatted.append(f"📅 {day_name}:")
+
+        # Первый заголовок: с эмоджи календаря и группой
+        if group:
+            formatted.append(f"📅 {day_name} (группа {group}):\n")
+
+        # Второй заголовок: жирный разделитель
+        header = f"─── {day_name}"
+        if group:
+            header += f" (Группа {group})"
+        header += " ───"
+        formatted.append(header)
+
         for pair_num, lessons in pairs.items():
-            logger.info(f"Обработка пары {pair_num}, lessons: {lessons}")
             if not lessons:
-                logger.info(f"Пара {pair_num} пустая, пропускаем")
                 continue
 
             valid_lessons = []
             for lesson in lessons:
-                if not isinstance(lesson, dict):
-                    logger.error(f"Ожидался словарь для занятия, но получен: {type(lesson)}, значение: {lesson}")
-                    continue
-
                 dts = lesson.get("dts", "Не указано")
                 if not is_date_range_valid(dts, current_date):
-                    logger.info(f"Пропущено занятие: {lesson.get('sbj', 'Не указано')}, даты: {dts}")
                     continue
-
                 valid_lessons.append(lesson)
 
             if not valid_lessons:
-                logger.info(f"Пара {pair_num} не содержит актуальных занятий, пропускаем")
                 continue
 
             time = SCHEDULE_TIMES.get(pair_num, "N/A")
-            formatted.append(f"  🕒 {time} (Пара {pair_num}):")
+            formatted.append(f"\n🕒 Пара {pair_num} ({time})")
+
             for lesson in valid_lessons:
                 subject = lesson.get("sbj", "Не указано")
-                teacher = lesson.get("teacher", "Не указано")
-                location = lesson.get("location", "Не указано")
                 lesson_type = lesson.get("type", "Не указано")
+                teacher = lesson.get("teacher", "-")
+                location = lesson.get("location", "Не указано")
                 dts = lesson.get("dts", "Не указано")
-                logger.info(f"Добавлено занятие: {subject}, даты: {dts}, преподаватель: {teacher}, место: {location}")
-                formatted.append(f"    📖 {subject} ({lesson_type})")
-                formatted.append(f"    👨‍🏫 {teacher}")
-                formatted.append(f"    📍 {location} | 🗓️ {dts}")
-            formatted.append("")
 
-        formatted.append("")
+                formatted.append(f"📖 {subject} ({lesson_type})")
+                formatted.append(f"👨‍🏫 {teacher if teacher else '-'}")
 
-    result = "\n".join(formatted) if formatted else "Расписание пустое."
-    logger.info(f"Итоговое расписание: {result[:100]}... (длина: {len(result)} символов)")
-    return result
+                loc_lower = location.lower()
+                if "online" in loc_lower or "онлайн" in loc_lower or "webinar" in loc_lower:
+                    formatted.append(f"🌐 Online курс")
+                else:
+                    formatted.append(f"📍 {location}")
+
+                formatted.append(f"🗓️ {dts}")
+                formatted.append("─────────────────────")  # Разделитель между парами
+
+    return "\n".join(formatted).strip() if formatted else "📭 Расписание пустое."

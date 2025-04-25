@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-# API rasp.dmami.ru
 BASE_URL = "https://rasp.dmami.ru/"
 API_URL = f"{BASE_URL}site/group"
 GROUP = "241-335"
