@@ -3,7 +3,8 @@
 ![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.13.3-yellow?logo=python&logoColor=white)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Перейти в бота](https://img.shields.io/badge/-@MospolytechShedule__Bot-0088CC?style=for-the-badge&logo=telegram)](https://t.me/MospolytechShedule_Bot)
+
+# [![Перейти в бота](https://img.shields.io/badge/-@MospolytechShedule__Bot-0088CC?style=for-the-badge&logo=telegram)](https://t.me/MospolytechShedule_Bot)
 ## 📝 Описание
 Официальный Telegram-бот для студентов Московского Политехнического Университета (МПУ). Бот предоставляет удобный доступ к актуальному расписанию прямо в Telegram.
 
