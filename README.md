@@ -56,5 +56,5 @@ https://m0nkl.github.io/
 
 
 ## Разработчики
-[Oleg Maslennikov](https://github.com/M0nkl) <br>
-[Komarov Egor](https://github.com/pojalustayuidi)
+- **[Олег Масленников](https://github.com/M0nkl)** 
+- **[Егор Комаров](https://github.com/pojalustayuidi)** 
