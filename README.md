@@ -1,6 +1,6 @@
 # MosPolytech-schedule-bot\
 ![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-blue.svg)
-![Python](https://img.shields.io/badge/Python-3.8+-yellow.svg)
+![Python](https://img.shields.io/badge/Python-3.13.3-yellow?logo=python&logoColor=white)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 ## Описание
 Данный бот предназначен для студентов Москвоского Политехнического Университета (МПУ).  С его помощью студенты могут
