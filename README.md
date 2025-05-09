@@ -1,4 +1,4 @@
-# MosPolytech-schedule-bot\
+# MosPolytech-schedule-bot ![image](https://github.com/user-attachments/assets/295305e3-acc2-4a2f-9ea4-9951aa0123ef)
 ![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.13.3-yellow?logo=python&logoColor=white)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
