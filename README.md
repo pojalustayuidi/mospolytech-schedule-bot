@@ -35,7 +35,7 @@ Telegram-бот для работы с расписанием. Проект со
 
 1. **Клонирование репозитория**
 ``bash
-git clone https://github.com/M0nkl/MosPolytech-schedule-bot.git``
+git clone https://github.com/pojalustayuidi/mospolytech-schedule-bot``
 ``cd MosPolytech-schedule-bot ``
 2. **Создание виртуального окружения**
 ``python -m venv venv``
