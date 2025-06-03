@@ -1,4 +1,5 @@
-# MosPolytech-schedule-bot ![image](https://github.com/user-attachments/assets/295305e3-acc2-4a2f-9ea4-9951aa0123ef)
+# MosPolytech-schedule-bot ![image](https://github.com/user-attachments/assets/afe3249f-dde5-4671-b6f6-40b63a0e9e01)
+
 
 ![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.13.3-yellow?logo=python&logoColor=white)
